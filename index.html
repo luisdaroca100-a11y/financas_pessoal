@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#3d0a6e">
+<title>Banco Nova — Saldo, cartões e investimentos</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --roxo: #3d0a6e;
+    --roxo2: #5c0e9e;
+    --roxo-claro: #e9dcf5;
+    --roxo-card: #dcc8f2;
+    --fundo: #f4f1f8;
+    --texto: #1c1230;
+    --cinza: #6b6480;
+    --verde: #0a8a4b;
+  }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--fundo);
+    color: var(--texto);
+    min-height: 100vh;
+  }
+  .tela { max-width: 480px; margin: 0 auto; min-height: 100vh; background: var(--fundo); padding-bottom: 96px; }
+  header {
+    background: linear-gradient(160deg, var(--roxo), var(--roxo2));
+    color: #fff;
+    padding: calc(20px + env(safe-area-inset-top)) 22px 26px;
+    border-radius: 0 0 26px 26px;
+  }
+  .marca { font-size: 14px; opacity: .85; letter-spacing: .4px; }
+  .topo { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; }
+  .topo h1 { font-size: 32px; font-weight: 800; letter-spacing: -.5px; }
+  .avatar {
+    width: 46px; height: 46px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,.7);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 700; background: rgba(255,255,255,.15);
+  }
+  section { padding: 18px 18px 0; scroll-margin-top: 12px; }
+  .cartao {
+    background: #fff; border-radius: 20px; padding: 22px;
+    box-shadow: 0 4px 18px rgba(61,10,110,.10);
+  }
+  .rotulo { font-size: 15px; color: var(--cinza); }
+  .saldo { font-size: 44px; font-weight: 800; letter-spacing: -1px; margin: 6px 0 10px; }
+  .atualizado { font-size: 14px; color: var(--cinza); }
+  .atualizado b { color: var(--verde); font-weight: 700; }
+
+  .secao-cartao { background: var(--roxo-card); }
+  .secao-cartao h2, .secao-invest h2 {
+    font-size: 19px; font-weight: 800; display: flex; align-items: center; gap: 8px;
+  }
+  .cartao-credito {
+    margin: 18px auto 6px; width: min(320px, 88%);
+    aspect-ratio: 1.586; border-radius: 16px; color: #fff;
+    background: linear-gradient(130deg, #4b0a80, #7b2ff7 70%, #9d5cff);
+    padding: 18px; position: relative;
+    box-shadow: 0 10px 24px rgba(61,10,110,.35);
+  }
+  .cartao-credito .chip {
+    width: 42px; height: 30px; border-radius: 6px; margin-top: 34px;
+    background: linear-gradient(135deg, #f5d97a, #c9a227);
+  }
+  .cartao-credito .num { position: absolute; bottom: 18px; left: 18px; font-size: 17px; letter-spacing: 2px; }
+  .cartao-credito .bandeira { position: absolute; bottom: 16px; right: 18px; font-size: 13px; font-weight: 700; letter-spacing: 1px; opacity: .9; }
+  .fatura { text-align: center; margin-top: 16px; }
+  .fatura .rotulo { font-size: 15px; }
+  .fatura .valor { font-size: 30px; font-weight: 800; margin: 2px 0 6px; }
+  .fatura .limite { font-size: 14px; color: var(--cinza); }
+  .barra { height: 8px; background: #fff; border-radius: 99px; margin-top: 14px; overflow: hidden; }
+  .barra i { display: block; height: 100%; width: 17%; background: var(--roxo2); border-radius: 99px; }
+
+  .invest-total { font-size: 34px; font-weight: 800; letter-spacing: -.5px; margin: 6px 0 4px; }
+  .invest-rend { font-size: 14px; color: var(--cinza); margin-bottom: 16px; }
+  .invest-rend b { color: var(--verde); }
+  .linha { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-top: 1px solid #eeeaf6; font-size: 15px; }
+  .linha:first-of-type { border-top: none; }
+  .linha .nome { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+  .linha .ponto { width: 10px; height: 10px; border-radius: 50%; }
+  .linha .valor { font-weight: 700; }
+  .linha small { display: block; color: var(--cinza); font-weight: 400; font-size: 13px; }
+
+  nav {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: min(480px, 100%); background: #fff;
+    display: flex; justify-content: space-around;
+    padding: 10px 8px calc(12px + env(safe-area-inset-bottom));
+    border-top: 1px solid #e7e1f0; z-index: 10;
+  }
+  nav a {
+    flex: 1; text-align: center; text-decoration: none; color: var(--cinza);
+    font-size: 13px; font-weight: 600; padding: 4px 0;
+  }
+  nav a span { display: block; font-size: 21px; line-height: 1.2; }
+  nav a.ativo { color: var(--roxo2); }
+  .aviso { text-align: center; color: #9a93ad; font-size: 12.5px; padding: 22px 24px 0; }
+</style>
+</head>
+<body>
+<div class="tela">
+  <header>
+    <div class="marca">Banco Nova</div>
+    <div class="topo">
+      <h1>Olá, Luis</h1>
+      <div class="avatar" aria-hidden="true">L</div>
+    </div>
+  </header>
+
+  <section id="inicio">
+    <div class="cartao">
+      <div class="rotulo">Saldo disponível</div>
+      <div class="saldo">R$ 5.000,00</div>
+      <div class="atualizado">Atualizado hoje &bull; <b>+2,5% neste mês</b></div>
+    </div>
+  </section>
+
+  <section id="cartoes">
+    <div class="cartao secao-cartao">
+      <h2>&#128179; Cartão de crédito</h2>
+      <div class="cartao-credito" aria-hidden="true">
+        <div class="chip"></div>
+        <div class="num">&bull;&bull;&bull;&bull; 4821</div>
+        <div class="bandeira">NOVA</div>
+      </div>
+      <div class="fatura">
+        <div class="rotulo">Fatura atual</div>
+        <div class="valor">R$ 850,00</div>
+        <div class="limite">Limite disponível R$ 4.150,00</div>
+      </div>
+      <div class="barra" aria-hidden="true"><i></i></div>
+    </div>
+  </section>
+
+  <section id="investimentos">
+    <div class="cartao secao-invest">
+      <h2>&#128200; Investimentos</h2>
+      <div class="rotulo" style="margin-top:12px">Total investido</div>
+      <div class="invest-total">R$ 12.450,00</div>
+      <div class="invest-rend">Rendimento neste mês: <b>+$ 312,40 (+2,5%)</b></div>
+      <div class="linha">
+        <div class="nome"><span class="ponto" style="background:#5c0e9e"></span><span>Renda fixa<small>Tesouro e CDB</small></span></div>
+        <div class="valor">R$ 7.200,00</div>
+      </div>
+      <div class="linha">
+        <div class="nome"><span class="ponto" style="background:#9d5cff"></span><span>Fundos<small>Fundos de investimento</small></span></div>
+        <div class="valor">R$ 3.050,00</div>
+      </div>
+      <div class="linha">
+        <div class="nome"><span class="ponto" style="background:#0a8a4b"></span><span>Ações<small>Bolsa de valores</small></span></div>
+        <div class="valor">R$ 2.200,00</div>
+      </div>
+    </div>
+  </section>
+
+  <p class="aviso">Valores de exemplo. Tela inicial do site novo.</p>
+</div>
+
+<nav>
+  <a href="#inicio" class="ativo" data-alvo="inicio"><span>&#8962;</span>Início</a>
+  <a href="#cartoes" data-alvo="cartoes"><span>&#128179;</span>Cartões</a>
+  <a href="#investimentos" data-alvo="investimentos"><span>&#128200;</span>Investimentos</a>
+</nav>
+
+<script>
+  const links = document.querySelectorAll('nav a');
+  const secoes = ['inicio', 'cartoes', 'investimentos'].map(id => document.getElementById(id));
+  function marcar() {
+    let atual = 'inicio';
+    secoes.forEach(s => { if (s.getBoundingClientRect().top <= 140) atual = s.id; });
+    links.forEach(a => a.classList.toggle('ativo', a.dataset.alvo === atual));
+  }
+  document.addEventListener('scroll', marcar, { passive: true });
+  marcar();
+</script>
+</body>
+</html>
