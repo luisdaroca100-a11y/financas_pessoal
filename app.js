@@ -1292,12 +1292,12 @@ function render() {
     $('pageTitle').textContent = 'Bem-vindo ao FinanSmart AI';
     $('pageSub').textContent = 'Entre para acessar seus dados.';
     $('btnNovo').style.display = 'none';
-    document.querySelectorAll('#nav a').forEach(function (a) { a.classList.remove('ativo'); });
+    document.querySelectorAll('#nav a, #bottombar a').forEach(function (a) { a.classList.remove('ativo'); });
     $('view').innerHTML = vAuth();
     return;
   }
   rotaAtual = rotaDaHash();
-  document.querySelectorAll('#nav a').forEach(function (a) {
+  document.querySelectorAll('#nav a, #bottombar a').forEach(function (a) {
     a.classList.toggle('ativo', a.getAttribute('data-route') === rotaAtual);
   });
   $('pageTitle').textContent = TITULOS[rotaAtual][0];

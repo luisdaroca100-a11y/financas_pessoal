@@ -40,13 +40,13 @@
         <strong id="pageTitle">Visão geral</strong>
         <span id="pageSub">Seu dinheiro, organizado.</span>
       </div>
+      <div class="mes-nav">
+        <button id="mesAnt" class="icon-btn" aria-label="Mês anterior">‹</button>
+        <span id="mesLabel">—</span>
+        <button id="mesProx" class="icon-btn" aria-label="Próximo mês">›</button>
+      </div>
       <div class="topbar-actions">
-        <div class="mes-nav">
-          <button id="mesAnt" class="icon-btn" aria-label="Mês anterior">‹</button>
-          <span id="mesLabel">—</span>
-          <button id="mesProx" class="icon-btn" aria-label="Próximo mês">›</button>
-        </div>
-        <button id="btnNovo" class="btn btn-primary">+ Novo lançamento</button>
+        <button id="btnNovo" class="btn btn-primary">+ <span class="txt">Novo lançamento</span></button>
       </div>
     </header>
 
@@ -56,6 +56,14 @@
 
 <div id="modalRoot"></div>
 <div id="toast" class="toast" role="status"></div>
+
+<nav id="bottombar" aria-label="Navegação rápida">
+  <a href="#/dashboard" data-route="dashboard"><span class="bb-ico">◈</span><span class="bb-txt">Visão geral</span></a>
+  <a href="#/cartoes" data-route="cartoes"><span class="bb-ico">▭</span><span class="bb-txt">Cartões</span></a>
+  <a href="#/luna" data-route="luna" class="bb-luna"><span class="bb-star">✦</span><span class="bb-txt">Luna AI</span></a>
+  <a href="#/mes" data-route="mes"><span class="bb-ico">◷</span><span class="bb-txt">Meu mês</span></a>
+  <a href="#/lancamentos" data-route="lancamentos"><span class="bb-ico">⇅</span><span class="bb-txt">Lançar</span></a>
+</nav>
 
 <script src="app.js"></script>
 </body>
