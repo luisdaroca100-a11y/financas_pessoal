@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0a0f0d">
+<title>FinanSmart AI — Controle financeiro inteligente</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app" class="app">
+  <aside id="sidebar" aria-label="Menu principal">
+    <div class="logo">
+      <span class="logo-mark">F</span>
+      <span class="logo-name">FinanSmart <em>AI</em></span>
+    </div>
+    <nav id="nav">
+      <a href="#/dashboard" data-route="dashboard"><span class="ico">◈</span> Visão geral</a>
+      <a href="#/contas" data-route="contas"><span class="ico">▤</span> Minhas contas</a>
+      <a href="#/cartoes" data-route="cartoes"><span class="ico">▭</span> Cartões</a>
+      <a href="#/parcelas" data-route="parcelas"><span class="ico">▦</span> Parcelamentos</a>
+      <a href="#/mes" data-route="mes"><span class="ico">◷</span> Meu mês</a>
+      <a href="#/lancamentos" data-route="lancamentos"><span class="ico">⇅</span> Receitas e despesas</a>
+      <a href="#/relatorios" data-route="relatorios"><span class="ico">📊</span> Relatórios</a>
+      <a href="#/luna" data-route="luna"><span class="ico">✦</span> Luna AI</a>
+      <a href="#/config" data-route="config"><span class="ico">⚙</span> Configurações</a>
+    </nav>
+    <div class="side-foot">
+      <div id="modoBadge" class="modo-badge">Modo local</div>
+      <div class="side-user"><span id="sideUserName">Olá, Luis</span><small id="sideUserSub">Seus dados neste aparelho</small></div>
+    </div>
+  </aside>
+
+  <div class="scrim" id="scrim"></div>
+
+  <div class="main-wrap">
+    <header class="topbar">
+      <button id="btnMenu" class="icon-btn" aria-label="Abrir menu">☰</button>
+      <div class="topbar-title">
+        <strong id="pageTitle">Visão geral</strong>
+        <span id="pageSub">Seu dinheiro, organizado.</span>
+      </div>
+      <div class="topbar-actions">
+        <div class="mes-nav">
+          <button id="mesAnt" class="icon-btn" aria-label="Mês anterior">‹</button>
+          <span id="mesLabel">—</span>
+          <button id="mesProx" class="icon-btn" aria-label="Próximo mês">›</button>
+        </div>
+        <button id="btnNovo" class="btn btn-primary">+ Novo lançamento</button>
+      </div>
+    </header>
+
+    <main id="view" class="view"></main>
+  </div>
+</div>
+
+<div id="modalRoot"></div>
+<div id="toast" class="toast" role="status"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
