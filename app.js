@@ -1124,6 +1124,255 @@ function lunaLocal(pergunta) {
   }
   return 'Posso ajudar com os seus dados reais. Pergunte, por exemplo:\n• "Quanto ainda tenho disponível este mês?"\n• "Quanto vou pagar de parcelas em novembro?"\n• "Qual cartão está com maior utilização?"\n• "Quanto estou gastando com alimentação?"\n• "Posso comprar um celular de R$ 2.000 parcelado em 10 vezes?"';
 }
+/* ---------- Cadastro pela Luna (linguagem natural) ---------- */
+const BANCOS_LUNA = [
+  ['nubank', 'Nubank'], ['inter', 'Inter'], ['itau', 'Itaú'], ['bradesco', 'Bradesco'],
+  ['santander', 'Santander'], ['caixa', 'Caixa'], ['banco do brasil', 'Banco do Brasil'],
+  ['c6', 'C6'], ['neon', 'Neon'], ['next', 'Next'], ['picpay', 'PicPay'],
+  ['mercado pago', 'Mercado Pago'], ['xp', 'XP'], ['original', 'Original'],
+  ['safra', 'Safra'], ['sicredi', 'Sicredi'], ['btg', 'BTG'], ['will', 'Will'],
+  ['digio', 'Digio'], ['pan', 'Pan']
+];
+function acharBancoLuna(t) {
+  for (let i = 0; i < BANCOS_LUNA.length; i++) {
+    if (t.indexOf(BANCOS_LUNA[i][0]) !== -1) return BANCOS_LUNA[i][1];
+  }
+  return null;
+}
+function valoresReais(t) {
+  const out = [];
+  const re = /r\$\s*([\d.,]+)|([\d.,]+)\s*re(ai|ia)s\b/g;
+  let m;
+  while ((m = re.exec(t)) !== null) {
+    const v = parseValorBR(m[1] || m[2]);
+    if (!isNaN(v) && v > 0) out.push({ valor: v, indice: m.index });
+  }
+  return out;
+}
+function valorApos(t, palavra) {
+  const i = t.indexOf(palavra);
+  if (i === -1) return null;
+  const vals = valoresReais(t.slice(i));
+  return vals.length ? vals[0].valor : null;
+}
+function extrairDia(t, padrao) {
+  const m = t.match(padrao);
+  if (!m) return null;
+  const d = parseInt(m[1], 10);
+  return d >= 1 && d <= 31 ? d : null;
+}
+function extrairParcelas(t) {
+  const m = t.match(/(\d{1,2})\s*(parcelas?|vezes|x)\b/);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  return n >= 1 && n <= 48 ? n : null;
+}
+const MAPA_CATEGORIA = [
+  ['assinatura|netflix|spotify|prime|streaming', 'Assinaturas'],
+  ['mercado|supermercado|feira|padaria|lanche|restaurante', 'Alimentação'],
+  ['aluguel|condominio|luz|energia|agua|internet|telefone', 'Moradia'],
+  ['gasolina|combustivel|uber|onibus|estacionamento|mecanico|pedagio', 'Transporte'],
+  ['farmacia|remedio|medico|dentista|saude', 'Saúde'],
+  ['cinema|show|jogo|viagem|hotel', 'Lazer'],
+  ['celular|roupa|sapato|eletronico|notebook|moveis', 'Compras']
+];
+function categoriaPorPalavras(t) {
+  for (let i = 0; i < MAPA_CATEGORIA.length; i++) {
+    if (new RegExp(MAPA_CATEGORIA[i][0]).test(t)) return MAPA_CATEGORIA[i][1];
+  }
+  return null;
+}
+function descricaoLivre(t) {
+  let s = t.replace(/r\$\s*[\d.,]+|[\d.,]+\s*re(ai|ia)s\b/g, ' ');
+  const lixo = ['gastei', 'paguei', 'comprei', 'recebi', 'ganhei', 'caiu', 'tenho', 'um', 'uma', 'o', 'a', 'e', 'no', 'na', 'nos', 'nas', 'em', 'de', 'do', 'da', 'dos', 'das', 'cartao', 'conta', 'parcela', 'parcelas', 'vezes', 'luna', 'cadastra', 'cadastrar', 'cria', 'criar', 'adiciona', 'novo', 'nova', 'com', 'por', 'pra', 'para', 'ja', 'em', 'que'];
+  const tokensBanco = [];
+  BANCOS_LUNA.forEach(function (b) {
+    if (b[0].indexOf(' ') !== -1) {
+      s = s.split(b[0]).join(' ');
+    } else {
+      tokensBanco.push(b[0]);
+    }
+  });
+  const palavras = s.split(/\s+/).filter(function (w) {
+    return w && lixo.indexOf(w) === -1 && tokensBanco.indexOf(w) === -1 && !/^\d+$/.test(w) && w !== 'x';
+  });
+  const desc = palavras.join(' ').trim();
+  return desc ? desc.charAt(0).toUpperCase() + desc.slice(1) : null;
+}
+function valorBareParcelado(t) {
+  const m = t.match(/([\d.,]+)\s+em\s+\d{1,2}\s*(?:parcelas?|vezes|x)\b/);
+  if (!m) return null;
+  const v = parseValorBR(m[1]);
+  return isNaN(v) || v <= 0 ? null : v;
+}
+function numeroSolto(t) {
+  const re = /\b(\d[\d.,]*)\b/g;
+  let m;
+  while ((m = re.exec(t)) !== null) {
+    const antes = t.slice(Math.max(0, m.index - 8), m.index);
+    const depois = t.slice(m.index + m[0].length, m.index + m[0].length + 12);
+    if (/dia\s*$/.test(antes)) continue;
+    if (/^\s*(parcelas?|vezes|x)\b/.test(depois)) continue;
+    const v = parseValorBR(m[1]);
+    if (!isNaN(v) && v > 0) return v;
+  }
+  return null;
+}
+function recalcularFaltando(plano) {
+  const f = [];
+  if (plano.tipo === 'cartao' || plano.tipo === 'cartao_compra') {
+    if (!plano.dados.banco) f.push('banco');
+    if (!plano.dados.limit) f.push('limite');
+    if (!plano.dados.closingDay) f.push('fechamento');
+  }
+  if (plano.tipo === 'conta') {
+    if (!plano.dados.banco) f.push('banco');
+  }
+  if (plano.compra) {
+    if (!plano.compra.valor) f.push('valorCompra');
+    if (!plano.compra.n) f.push('parcelas');
+  }
+  if (plano.tipo === 'lancamento' && !plano.dados.valor) f.push('valor');
+  plano.faltando = f;
+  return f;
+}
+function parseCadastroLuna(texto, estado) {
+  const t = normTexto(texto);
+  const temAcao = /(tenho|cadastr|criei|criar|adiciona|novo|nova|gastei|comprei|paguei|limite|fecha|venc|recebi|ganhei)/.test(t);
+  if (!temAcao) return null;
+  const banco = acharBancoLuna(t);
+  const temCartao = t.indexOf('cartao') !== -1;
+  const n = extrairParcelas(t);
+  const vals = valoresReais(t);
+  if (temCartao) {
+    const dados = {
+      banco: banco || null,
+      limit: valorApos(t, 'limite'),
+      closingDay: extrairDia(t, /fech(?:amento)?[^0-9]{0,14}dia\s*(\d{1,2})/) || extrairDia(t, /fatura[^0-9]{0,14}dia\s*(\d{1,2})/),
+      dueDay: extrairDia(t, /venc(?:imento)?[^0-9]{0,14}dia\s*(\d{1,2})/)
+    };
+    let compra = null;
+    if (n || /(gastei|comprei|parcela)/.test(t)) {
+      let valorCompra = valorApos(t, 'gastei') || valorApos(t, 'comprei') || valorApos(t, 'paguei') || valorBareParcelado(t);
+      if (!valorCompra && vals.length) {
+        const outros = vals.filter(function (v) { return v.valor !== dados.limit; });
+        if (outros.length) valorCompra = outros[0].valor;
+      }
+      if (valorCompra || n) {
+        compra = { valor: valorCompra || null, n: n || null, nome: null, categoria: categoriaPorPalavras(t) || 'Compras' };
+      }
+    }
+    const existe = banco && estado && estado.cards && estado.cards.some(function (c) {
+      return normTexto(c.name).indexOf(normTexto(banco)) !== -1 || normTexto(c.bank || '').indexOf(normTexto(banco)) !== -1;
+    });
+    if (existe) {
+      if (!compra) return null;
+      const planoExistente = { tipo: 'compra', dados: { banco }, compra, faltando: [] };
+      recalcularFaltando(planoExistente);
+      return planoExistente;
+    }
+    const plano = { tipo: compra ? 'cartao_compra' : 'cartao', dados, compra, faltando: [] };
+    recalcularFaltando(plano);
+    return plano;
+  }
+  if (n) {
+    const valorCompra = valorApos(t, 'gastei') || valorApos(t, 'comprei') || valorApos(t, 'paguei') || valorBareParcelado(t) || (vals.length ? vals[0].valor : null);
+    const plano = {
+      tipo: 'compra',
+      dados: { banco: banco || null },
+      compra: { valor: valorCompra || null, n, nome: descricaoLivre(t), categoria: categoriaPorPalavras(t) || 'Compras' },
+      faltando: []
+    };
+    recalcularFaltando(plano);
+    return plano;
+  }
+  const ehReceita = /(recebi|ganhei|caiu)/.test(t);
+  const ehDespesa = /(gastei|paguei|comprei)/.test(t);
+  const valorAvulso = vals.length ? vals[0].valor : numeroSolto(t);
+  if ((ehReceita || ehDespesa) && valorAvulso) {
+    const desc = descricaoLivre(t);
+    const plano = {
+      tipo: 'lancamento',
+      dados: {
+        tipo: ehReceita ? 'receita' : 'despesa',
+        valor: valorAvulso,
+        desc: desc,
+        categoria: categoriaPorPalavras(t) || (ehReceita ? 'Outros' : 'Outros'),
+        banco: banco || null
+      },
+      compra: null,
+      faltando: []
+    };
+    recalcularFaltando(plano);
+    return plano;
+  }
+  if (t.indexOf('conta') !== -1 && banco && (vals.length || numeroSolto(t))) {
+    const plano = { tipo: 'conta', dados: { banco, initial: vals.length ? vals[0].valor : numeroSolto(t) }, compra: null, faltando: [] };
+    recalcularFaltando(plano);
+    return plano;
+  }
+  return null;
+}
+function resumoPlano(plano) {
+  const linhas = [];
+  if (plano.tipo === 'cartao' || plano.tipo === 'cartao_compra') {
+    linhas.push('Cartão ' + plano.dados.banco + ': limite ' + fmt(plano.dados.limit) + ', fechamento dia ' + plano.dados.closingDay + ', vencimento dia ' + (plano.dados.dueDay || Math.min(28, plano.dados.closingDay + 5)) + '.');
+  }
+  if (plano.tipo === 'compra' || plano.compra) {
+    const c = plano.compra;
+    const cartaoTxt = plano.dados.banco ? ' no cartão ' + plano.dados.banco : ' sem cartão';
+    linhas.push('Compra parcelada: ' + fmt(c.valor) + ' em ' + c.n + 'x de ' + fmt(c.valor / c.n) + cartaoTxt + (c.nome ? ' (' + c.nome + ')' : '') + '.');
+  }
+  if (plano.tipo === 'lancamento') {
+    const d = plano.dados;
+    linhas.push((d.tipo === 'receita' ? 'Receita' : 'Despesa') + ' de ' + fmt(d.valor) + ' — ' + (d.desc || d.categoria) + ' (' + d.categoria + ')' + (d.banco ? ' no cartão ' + d.banco : '') + '.');
+  }
+  if (plano.tipo === 'conta') {
+    linhas.push('Conta ' + plano.dados.banco + ' com saldo inicial ' + fmt(plano.dados.initial) + '.');
+  }
+  return linhas.join('\n');
+}
+const PERGUNTAS_FALTANDO = {
+  banco: 'De qual banco é o cartão?',
+  limite: 'Qual o limite do cartão?',
+  fechamento: 'Qual o dia de fechamento da fatura?',
+  valorCompra: 'Qual o valor da compra?',
+  parcelas: 'Em quantas parcelas?',
+  valor: 'Qual o valor?'
+};
+function perguntaPlano(plano) {
+  if (plano.faltando.length) {
+    const q = PERGUNTAS_FALTANDO[plano.faltando[0]] || 'Pode me passar o resto?';
+    const ja = [];
+    if (plano.dados.banco) ja.push('banco ' + plano.dados.banco);
+    if (plano.dados.limit) ja.push('limite ' + fmt(plano.dados.limit));
+    if (plano.dados.closingDay) ja.push('fechamento dia ' + plano.dados.closingDay);
+    if (plano.compra && plano.compra.valor) ja.push('compra ' + fmt(plano.compra.valor));
+    if (plano.compra && plano.compra.n) ja.push(plano.compra.n + ' parcelas');
+    return 'Entendi até aqui' + (ja.length ? ': ' + ja.join(', ') : '') + '. ' + q;
+  }
+  return 'Entendi! Vou cadastrar:\n' + resumoPlano(plano) + '\n\nPosso salvar? Responde "sim".';
+}
+function tentarPreencherPendente(texto, plano) {
+  const t = normTexto(texto);
+  const vals = valoresReais(t);
+  const solto = numeroSolto(t);
+  const primeiroValor = vals.length ? vals[0].valor : solto;
+  const dia = extrairDia(t, /dia\s*(\d{1,2})/);
+  const banco = acharBancoLuna(t);
+  const n = extrairParcelas(t);
+  let mudou = false;
+  if (plano.faltando.indexOf('banco') !== -1 && banco) { plano.dados.banco = banco; mudou = true; }
+  if (plano.faltando.indexOf('limite') !== -1 && primeiroValor) { plano.dados.limit = primeiroValor; mudou = true; }
+  if (plano.faltando.indexOf('fechamento') !== -1 && dia) { plano.dados.closingDay = dia; mudou = true; }
+  if (plano.compra) {
+    if (plano.faltando.indexOf('valorCompra') !== -1 && primeiroValor) { plano.compra.valor = primeiroValor; mudou = true; }
+    if (plano.faltando.indexOf('parcelas') !== -1 && n) { plano.compra.n = n; mudou = true; }
+  }
+  if (plano.tipo === 'lancamento' && plano.faltando.indexOf('valor') !== -1 && primeiroValor) { plano.dados.valor = primeiroValor; mudou = true; }
+  if (mudou) recalcularFaltando(plano);
+  return mudou;
+}
 function montarSnapshot() {
   const t = totaisMes(state, mesSel);
   return {
@@ -1157,7 +1406,8 @@ function vLuna() {
     'Quanto vou pagar de parcelas em novembro?',
     'Qual cartão está com maior utilização?',
     'Quanto estou gastando com alimentação?',
-    'Posso comprar um celular de R$ 2.000 parcelado em 10 vezes?'
+    'Posso comprar um celular de R$ 2.000 parcelado em 10 vezes?',
+    'Cadastra meu cartão Nubank: limite R$ 3.500, fecha dia 8'
   ];
   return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">' +
     '<div><h3>✦ Luna AI</h3><p class="sub">Sua assistente financeira. Ela responde com os seus dados reais — nunca inventa saldos.</p></div>' +
@@ -1187,6 +1437,86 @@ function renderChatLuna() {
   }
   box.scrollTop = box.scrollHeight;
 }
+/* ---------- Execução do cadastro pela Luna ---------- */
+let cadastroPendente = null;
+function ehConfirmacao(texto) {
+  const t = normTexto(texto).trim();
+  const curtas = ['sim', 'isso', 'confirma', 'pode salvar', 'salva', 'certo', 'fechado', 'ok', 'manda', 'pode'];
+  return curtas.some(function (w) { return t === w || t.indexOf(w + ' ') === 0 || t.indexOf(w + ',') === 0; });
+}
+function ehCancelamento(texto) {
+  const t = normTexto(texto).trim();
+  return /^(nao|cancela|esquece|deixa|para)\b/.test(t) && t.length < 30;
+}
+function acharCartaoExistente(banco) {
+  if (!banco) return null;
+  const alvo = normTexto(banco);
+  return state.cards.find(function (c) {
+    return normTexto(c.name).indexOf(alvo) !== -1 || normTexto(c.bank || '').indexOf(alvo) !== -1;
+  }) || null;
+}
+async function executarCadastroPendente() {
+  const plano = cadastroPendente;
+  cadastroPendente = null;
+  const feitos = [];
+  let cardId = null;
+  let cardNome = plano.dados.banco || null;
+  if (plano.tipo === 'cartao' || plano.tipo === 'cartao_compra') {
+    const existente = acharCartaoExistente(plano.dados.banco);
+    if (existente) {
+      cardId = existente.id;
+      cardNome = existente.name;
+      feitos.push('Usei o cartão ' + existente.name + ', que já estava cadastrado.');
+    } else {
+      const closing = plano.dados.closingDay;
+      const card = {
+        id: uid(), name: plano.dados.banco, bank: plano.dados.banco, brand: 'Outra',
+        limit: plano.dados.limit, closingDay: closing,
+        dueDay: plano.dados.dueDay || Math.min(28, closing + 5),
+        bestDay: closing >= 28 ? 1 : closing + 1, color: '#0a9a68'
+      };
+      state.cards.push(card);
+      await persistir(marcar('cards', card));
+      cardId = card.id;
+      feitos.push('Cartão ' + card.name + ' criado: limite ' + fmt(card.limit) + ', fechamento dia ' + closing + ', vencimento dia ' + card.dueDay + '.');
+    }
+  } else if (plano.dados.banco) {
+    const existente = acharCartaoExistente(plano.dados.banco);
+    if (existente) { cardId = existente.id; cardNome = existente.name; }
+  }
+  if (plano.compra) {
+    const p = {
+      id: uid(),
+      name: plano.compra.nome || ('Compra' + (cardNome ? ' no cartão ' + cardNome : '')),
+      total: plano.compra.valor, cardId: cardId, n: plano.compra.n,
+      firstMonth: chaveMes(new Date()), category: plano.compra.categoria || 'Compras', paidMonths: []
+    };
+    state.purchases.push(p);
+    await persistir(marcar('purchases', p));
+    feitos.push('Compra parcelada salva: ' + fmt(p.total) + ' em ' + p.n + 'x de ' + fmt(p.total / p.n) + ' a partir de ' + rotuloMes(p.firstMonth) + '. Veja em Parcelamentos.');
+  }
+  if (plano.tipo === 'lancamento') {
+    const d = plano.dados;
+    const e = {
+      id: uid(), type: d.tipo, desc: d.desc || (d.tipo === 'receita' ? 'Receita' : 'Despesa'),
+      amount: d.valor, category: d.categoria, date: hojeISO(),
+      accountId: null, cardId: d.tipo === 'despesa' ? cardId : null,
+      kind: 'avulsa', recurring: false, invoiceMonth: null, destAccountId: null
+    };
+    state.entries.push(e);
+    await persistir(marcar('entries', e));
+    feitos.push((d.tipo === 'receita' ? 'Receita' : 'Despesa') + ' de ' + fmt(d.valor) + ' salva em Receitas e despesas.');
+  }
+  if (plano.tipo === 'conta') {
+    const a = { id: uid(), name: plano.dados.banco, type: 'Conta corrente', initial: plano.dados.initial || 0 };
+    state.accounts.push(a);
+    await persistir(marcar('accounts', a));
+    feitos.push('Conta ' + a.name + ' criada com saldo inicial ' + fmt(a.initial) + '. Veja em Minhas contas.');
+  }
+  salvarLocal();
+  render();
+  return 'Pronto! Salvei:\n• ' + feitos.join('\n• ');
+}
 async function lunaEnviar(texto) {
   const h = lerHistoricoLuna();
   h.push({ role: 'user', content: texto });
@@ -1199,23 +1529,48 @@ async function lunaEnviar(texto) {
   box.appendChild(espera);
   box.scrollTop = box.scrollHeight;
   let resposta = null;
-  if (CONFIG.groqConfigured) {
-    try {
-      const r = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: h, snapshot: montarSnapshot() })
-      });
-      const d = await r.json().catch(function () { return {}; });
-      if (r.ok && d.reply) resposta = d.reply;
-    } catch (e) { resposta = null; }
+  if (cadastroPendente) {
+    if (ehConfirmacao(texto)) {
+      espera.remove();
+      resposta = await executarCadastroPendente();
+    } else if (ehCancelamento(texto)) {
+      cadastroPendente = null;
+      espera.remove();
+      resposta = 'Tudo bem, descartei esse cadastro. Se quiser, fala de novo que eu anoto.';
+    } else if (tentarPreencherPendente(texto, cadastroPendente)) {
+      espera.remove();
+      resposta = perguntaPlano(cadastroPendente);
+    } else {
+      cadastroPendente = null;
+    }
+  }
+  if (!resposta && !cadastroPendente) {
+    const plano = parseCadastroLuna(texto, state);
+    if (plano) {
+      cadastroPendente = plano;
+      espera.remove();
+      resposta = perguntaPlano(plano);
+    }
   }
   if (!resposta) {
-    await new Promise(function (res) { setTimeout(res, 350); });
-    resposta = lunaLocal(texto);
-    if (CONFIG.groqConfigured) resposta += '\n\n(Respondi com o motor local porque a Groq não respondeu agora.)';
+    if (CONFIG.groqConfigured) {
+      try {
+        const r = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: h, snapshot: montarSnapshot() })
+        });
+        const d = await r.json().catch(function () { return {}; });
+        if (r.ok && d.reply) resposta = d.reply;
+      } catch (e) { resposta = null; }
+    }
+    if (!resposta) {
+      await new Promise(function (res) { setTimeout(res, 350); });
+      resposta = lunaLocal(texto);
+      if (CONFIG.groqConfigured) resposta += '\n\n(Respondi com o motor local porque a Groq não respondeu agora.)';
+    }
+    espera.remove();
   }
-  espera.remove();
   h.push({ role: 'assistant', content: resposta });
   salvarHistoricoLuna(h);
   renderChatLuna();

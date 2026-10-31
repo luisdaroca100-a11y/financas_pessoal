@@ -163,6 +163,12 @@ function lunaPara(state, mesSel) {
   const fn = new Function(...keys, lunaSrc + '\nreturn lunaLocal;');
   return fn(...keys.map((k) => ctx[k]));
 }
+function lunaFns(state, mesSel) {
+  const ctx = Object.assign({}, P, { state, mesSel, CATEGORIAS_DESPESA, MESES_PT });
+  const keys = Object.keys(ctx);
+  const fn = new Function(...keys, lunaSrc + '\nreturn { lunaLocal, parseCadastroLuna, perguntaPlano, tentarPreencherPendente, resumoPlano };');
+  return fn(...keys.map((k) => ctx[k]));
+}
 ok('Luna: sobra do mês com número real', () => {
   const luna = lunaPara(fixture(), '2026-10');
   const r = luna('Quanto ainda tenho disponível este mês?');
@@ -201,6 +207,70 @@ ok('Luna: pergunta fora do escopo lista capacidades, sem inventar', () => {
   const r = luna('Qual é a previsão do tempo?');
   assert.ok(r.includes('Posso ajudar'), r);
   assert.ok(!r.includes('3.360'), r);
+});
+
+/* ---------- Cadastro pela Luna ---------- */
+function fixtureSemCartao() {
+  const st = fixture();
+  st.cards = [];
+  return st;
+}
+ok('Luna cadastro: exemplo do Luis (cartão + compra juntos, com typo "reias")', () => {
+  const fns = lunaFns(fixtureSemCartao(), '2026-10');
+  const plano = fns.parseCadastroLuna('Luna, tenho um cartão da nubank com limite de 3.500 reias já gastei 1.500 reais em 10 parcela e a fatura fecha todo dia 08', fixtureSemCartao());
+  assert.strictEqual(plano.tipo, 'cartao_compra');
+  assert.strictEqual(plano.dados.banco, 'Nubank');
+  assert.strictEqual(plano.dados.limit, 3500);
+  assert.strictEqual(plano.dados.closingDay, 8);
+  assert.strictEqual(plano.compra.valor, 1500);
+  assert.strictEqual(plano.compra.n, 10);
+  assert.deepStrictEqual(plano.faltando, []);
+  const pergunta = fns.perguntaPlano(plano);
+  assert.ok(pergunta.includes('3.500,00'), pergunta);
+  assert.ok(pergunta.includes('150,00'), pergunta);
+  assert.ok(pergunta.includes('sim'), pergunta);
+});
+ok('Luna cadastro: cartão já existe vira só a compra', () => {
+  const fns = lunaFns(fixture(), '2026-10');
+  const plano = fns.parseCadastroLuna('Comprei um celular de 1.500 reais em 10 parcelas no cartão nubank', fixture());
+  assert.strictEqual(plano.tipo, 'compra');
+  assert.strictEqual(plano.compra.valor, 1500);
+  assert.strictEqual(plano.compra.n, 10);
+  assert.deepStrictEqual(plano.faltando, []);
+});
+ok('Luna cadastro: pergunta normal não vira cadastro', () => {
+  const fns = lunaFns(fixture(), '2026-10');
+  assert.strictEqual(fns.parseCadastroLuna('Qual cartão está com maior utilização?', fixture()), null);
+  assert.strictEqual(fns.parseCadastroLuna('Quanto gastei com alimentação?', fixture()), null);
+  assert.strictEqual(fns.parseCadastroLuna('Quanto tenho disponível?', fixture()), null);
+});
+ok('Luna cadastro: "cadastra um cartão" pede os campos que faltam e preenche', () => {
+  const fns = lunaFns(fixtureSemCartao(), '2026-10');
+  const plano = fns.parseCadastroLuna('Luna, cadastra um cartão pra mim', fixtureSemCartao());
+  assert.ok(plano);
+  assert.deepStrictEqual(plano.faltando, ['banco', 'limite', 'fechamento']);
+  assert.ok(fns.perguntaPlano(plano).toLowerCase().includes('banco'));
+  assert.strictEqual(fns.tentarPreencherPendente('nubank, limite 3000, fecha dia 5', plano), true);
+  assert.deepStrictEqual(plano.faltando, []);
+  assert.strictEqual(plano.dados.banco, 'Nubank');
+  assert.strictEqual(plano.dados.limit, 3000);
+  assert.strictEqual(plano.dados.closingDay, 5);
+});
+ok('Luna cadastro: gasto avulso com descrição e categoria', () => {
+  const fns = lunaFns(fixture(), '2026-10');
+  const plano = fns.parseCadastroLuna('Gastei 50 no mercado', fixture());
+  assert.strictEqual(plano.tipo, 'lancamento');
+  assert.strictEqual(plano.dados.valor, 50);
+  assert.strictEqual(plano.dados.categoria, 'Alimentação');
+  assert.ok(plano.dados.desc.toLowerCase().includes('mercado'), plano.dados.desc);
+});
+ok('Luna cadastro: compra parcelada avulsa sem "reais"', () => {
+  const fns = lunaFns(fixture(), '2026-10');
+  const plano = fns.parseCadastroLuna('Comprei um celular de 1200 em 12x no nubank', fixture());
+  assert.strictEqual(plano.tipo, 'compra');
+  assert.strictEqual(plano.compra.valor, 1200);
+  assert.strictEqual(plano.compra.n, 12);
+  assert.strictEqual(plano.dados.banco, 'Nubank');
 });
 
 console.log('\n' + pass + ' testes PASS.');

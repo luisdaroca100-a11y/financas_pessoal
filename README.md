@@ -28,6 +28,11 @@ A **Luna AI** também tem dois níveis:
 - **Com `GROQ_API_KEY`:** usa a Groq (`openai/gpt-oss-120b` por
   padrão, trocável via `GROQ_MODEL`) recebendo um resumo dos dados
   reais. A chave fica só no servidor, nunca no frontend.
+- **Cadastro por conversa:** fale com a Luna ("tenho um cartão da
+  Nubank com limite de R$ 3.500, já gastei R$ 1.500 em 10 parcelas,
+  fecha dia 08") — ela mostra o resumo e só salva depois que você
+  confirmar com "sim". Também cadastra gastos avulsos ("gastei 50 no
+  mercado") e contas. Perguntas normais continuam sendo só perguntas.
 
 ## Publicação (Vercel)
 
