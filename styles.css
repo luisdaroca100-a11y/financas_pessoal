@@ -216,6 +216,17 @@ label { display: block; font-size: 13.5px; font-weight: 700; margin-bottom: 6px;
 }
 .compra-toggle small, .compra-toggle span small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 3px; font-weight: 400; }
 
+/* ---------- Menu de ações (⋯) ---------- */
+.menu-acoes { display: flex; flex-direction: column; }
+.menu-acoes button {
+  width: 100%; text-align: left; background: none; border: none; border-bottom: 1px solid var(--border);
+  color: var(--text); font-family: inherit; font-size: 15px; font-weight: 600;
+  padding: 14px 4px; cursor: pointer;
+}
+.menu-acoes button:last-child { border-bottom: none; }
+.menu-acoes button:active { opacity: 0.6; }
+.menu-acoes button.perigo { color: var(--red); }
+
 /* ---------- Modal / toast ---------- */
 .modal { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, 0.62); display: none; align-items: flex-end; justify-content: center; }
 .modal.aberto { display: flex; }

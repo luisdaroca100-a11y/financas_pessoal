@@ -876,7 +876,7 @@ function detalheCartaoHTML(c) {
     parcelasDoMes(state, m).forEach(function (x) { if (x.purchase.cardId === c.id) tot += x.valor; });
     chips += '<button type="button" class="mes-chip' + (m === ch ? ' ativo' : '') + '" data-action="cartao-mes-chip" data-mes="' + m + '"><b>' + esc(mesCurto(m)) + '</b><span>' + fmt(tot) + '</span></button>';
   }
-  return '<div class="sec-head"><h2>' + esc(c.name) + '</h2><div class="acoes"><button type="button" class="btn btn-ghost" data-action="voltar-cartoes">‹ Voltar para cartões</button></div></div>' +
+  return '<div class="sec-head"><h2>' + esc(c.name) + '</h2><div class="acoes"><button type="button" class="btn btn-ghost" data-action="voltar-cartoes">‹ Voltar para cartões</button><button type="button" class="icon-btn" data-action="menu-cartao" data-id="' + c.id + '" aria-label="Mais opções" style="font-size:20px;line-height:1">⋯</button></div></div>' +
     '<div style="display:flex;justify-content:center;margin-bottom:16px">' + cartaoVisualHTML(c, f) + '</div>' +
     '<div class="grid kpis">' +
     kpiHTML('Limite total', fmt(c.limit), esc(c.bank) + ' • ' + esc(c.brand)) +
@@ -896,10 +896,18 @@ function detalheCartaoHTML(c) {
     (f.pago ? '<span class="tag verde">Fatura paga</span>' : (f.pagos > 0 ? '<span class="tag amarelo">Pago parcial: ' + fmt(f.pagos) + ' — faltam ' + fmt(f.faltam) + '</span>' : '<span class="tag vermelho">Em aberto</span>')) + '</div>' +
     '<div style="margin-top:8px">' + linhasFatura + '</div>' +
     (f.total > 0 && !f.pago ? '<div class="acoes-linha" style="margin-top:12px"><button type="button" class="btn btn-primary btn-sm" data-action="pagar-fatura-cartao" data-id="' + c.id + '" data-mes="' + ch + '">Pagar fatura de ' + esc(mesCurto(ch)) + '</button></div>' : '') + '</div>' +
-    '<div class="sec-head"><h2>Parcelas deste cartão</h2><div class="acoes"><button type="button" class="btn btn-primary" data-action="nova-compra">+ Nova compra parcelada</button></div></div>' +
-    linhasCompras +
-    '<div class="acoes-linha" style="margin-top:6px"><button type="button" class="btn btn-ghost btn-sm" data-action="editar-cartao" data-id="' + c.id + '">Editar cartão</button>' +
-    '<button type="button" class="btn btn-danger btn-sm" data-action="apagar-cartao" data-id="' + c.id + '">Apagar cartão</button></div>';
+    '<div class="sec-head"><h2>Parcelas deste cartão</h2></div>' +
+    linhasCompras;
+}
+
+function menuCartaoHTML(c) {
+  return '<h3>' + esc(c.name) + '</h3><p class="sub" style="margin-bottom:14px">O que você quer fazer com este cartão?</p>' +
+    '<div class="menu-acoes">' +
+    '<button type="button" data-action="nova-compra">＋ Nova compra parcelada</button>' +
+    '<button type="button" data-action="editar-cartao" data-id="' + c.id + '">✎ Editar cartão</button>' +
+    '<button type="button" class="perigo" data-action="apagar-cartao" data-id="' + c.id + '">✕ Apagar cartão</button>' +
+    '</div>' +
+    '<div class="botoes"><button type="button" class="btn btn-ghost" data-fechar>Cancelar</button></div>';
 }
 
 function vParcelas() {
@@ -1804,6 +1812,7 @@ function bindStatic() {
     if (acao === 'cartao-mes-chip') { cartaoMes = el.getAttribute('data-mes'); render(); return; }
     if (acao === 'toggle-cronograma') { comprasExpandidas[id] = !comprasExpandidas[id]; render(); return; }
     if (acao === 'pagar-fatura-cartao') { openModal(formPagarFaturaHTML(id, el.getAttribute('data-mes') || mesSel)); return; }
+    if (acao === 'menu-cartao') { const o = state.cards.find(function (x) { return x.id === id; }); if (o) openModal(menuCartaoHTML(o)); return; }
     if (acao === 'nova-compra') { openModal(formCompraHTML()); return; }
     if (acao === 'editar-compra') { const o = state.purchases.find(function (x) { return x.id === id; }); if (o) openModal(formCompraHTML(o)); return; }
     if (acao === 'apagar-compra') {
