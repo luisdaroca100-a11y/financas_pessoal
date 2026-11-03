@@ -153,6 +153,36 @@ ok('recorrente se repete nos meses seguintes', () => {
   assert.strictEqual(t.despesas, 1200 + 40 + 500);
 });
 
+ok('fatura do cartão: avulsas + parcelas do mês, sem dupla contagem', () => {
+  const st = fixture();
+  const f = P.faturaCartao(st, 'card-nub', '2026-10');
+  assert.strictEqual(f.avulsas, 40);
+  assert.strictEqual(f.parcelas, 100);
+  assert.strictEqual(f.total, 140);
+  assert.strictEqual(f.pago, false);
+  const fNov = P.faturaCartao(st, 'card-nub', '2026-11');
+  assert.strictEqual(fNov.parcelas, 100);
+  assert.strictEqual(fNov.avulsas, 290);
+});
+ok('cronograma da compra: 12 parcelas somam o total, 1ª paga', () => {
+  const st = fixture();
+  const p = st.purchases[0];
+  let soma = 0;
+  let vistas = 0;
+  for (let i = 0; i < 12; i++) {
+    const ch = P.chaveDeIndice(P.indiceMes(p.firstMonth) + i);
+    const xs = P.parcelasDoMes(st, ch).filter(function (x) { return x.purchase.id === p.id; });
+    assert.strictEqual(xs.length, 1);
+    soma += xs[0].valor;
+    vistas += 1;
+    if (ch === '2026-10') { assert.strictEqual(xs[0].k, 1); assert.strictEqual(xs[0].pago, true); }
+    if (ch === '2026-11') { assert.strictEqual(xs[0].k, 2); assert.strictEqual(xs[0].pago, false); }
+  }
+  assert.strictEqual(vistas, 12);
+  assert.strictEqual(soma, 1200);
+  assert.strictEqual(P.fimDaCompra(p), '2027-09');
+});
+
 /* ---------- Luna local ---------- */
 const CATEGORIAS_DESPESA = ['Alimentação', 'Moradia', 'Transporte', 'Saúde', 'Lazer', 'Compras', 'Assinaturas', 'Outros'];
 const MESES_PT = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];

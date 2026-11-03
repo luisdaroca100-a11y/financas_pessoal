@@ -266,6 +266,9 @@ function estadoVazio() {
 }
 let state = estadoVazio();
 let mesSel = chaveMes(new Date());
+let cartaoAberto = null; // id do cartão com o detalhe aberto
+let cartaoMes = null; // mês exibido dentro do detalhe do cartão
+let comprasExpandidas = {}; // id da compra -> cronograma aberto no detalhe
 let rotaAtual = 'dashboard';
 
 function uid() {
@@ -787,17 +790,24 @@ function vContas() {
 function cartaoVisualHTML(c, fatura) {
   const cor = c.color || '#0a9a68';
   return '<div class="cartao-visual" style="background:linear-gradient(130deg,' + esc(cor) + ',' + esc(cor) + 'cc 60%,#0a0f0d)">' +
-    '<div><div class="banco">' + esc(c.bank || c.name) + '</div><div class="chip"></div></div>' +
+    '<div class="topo"><div class="banco">' + esc(c.bank || c.name) + '</div><div class="ondas" aria-hidden="true"><i></i><i></i><i></i><i></i></div></div>' +
+    '<div class="chip"></div>' +
     '<div class="numero">•••• •••• •••• ••••</div>' +
     '<div class="rodape"><span><small>TITULAR</small><b>' + esc(state.profile.name || 'Luis') + '</b></span><span><small>BANDEIRA</small><b>' + esc(c.brand || '') + '</b></span></div></div>';
 }
 function vCartoes() {
+  if (cartaoAberto) {
+    const c = state.cards.find(function (x) { return x.id === cartaoAberto; });
+    if (c) return detalheCartaoHTML(c);
+    cartaoAberto = null;
+  }
   const lista = state.cards.map(function (c) {
     const f = faturaCartao(state, c.id, mesSel);
     const disp = c.limit - f.total;
     const pct = c.limit > 0 ? Math.min(100, (f.total / c.limit) * 100) : 0;
-    return '<div class="card"><div style="display:flex;justify-content:center">' + cartaoVisualHTML(c, f) + '</div>' +
-      '<div style="margin-top:16px"><h3>' + esc(c.name) + '</h3><p class="sub">' + esc(c.bank) + ' &bull; ' + esc(c.brand) + '</p></div>' +
+    return '<div class="card clicavel" data-action="abrir-cartao" data-id="' + c.id + '"><div style="display:flex;justify-content:center">' + cartaoVisualHTML(c, f) + '</div>' +
+      '<div style="text-align:center;margin-top:10px"><span class="cartao-dica">Toque no cartão para ver as parcelas e os meses ›</span></div>' +
+      '<div style="margin-top:12px"><h3>' + esc(c.name) + '</h3><p class="sub">' + esc(c.bank) + ' &bull; ' + esc(c.brand) + '</p></div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:14px;text-align:center">' +
       '<div><div class="sub">Limite total</div><b>' + fmt(c.limit) + '</b></div>' +
       '<div><div class="sub">Utilizado (' + esc(mesCurto(mesSel)) + ')</div><b>' + fmt(f.total) + '</b></div>' +
@@ -814,6 +824,82 @@ function vCartoes() {
   return '<div class="sec-head"><h2>Cartões de crédito</h2><div class="acoes"><button type="button" class="btn btn-primary" data-action="novo-cartao">+ Novo cartão</button></div></div>' +
     (lista ? '<div class="grid tres">' + lista + '</div>'
       : '<div class="card"><div class="vazio">Nenhum cartão cadastrado.<br>Cadastre seus cartões para controlar limites, faturas e vencimentos.<br><button type="button" class="btn btn-primary" data-action="novo-cartao">+ Cadastrar cartão</button></div></div>');
+}
+
+function detalheCartaoHTML(c) {
+  const ch = cartaoMes || mesSel;
+  const f = faturaCartao(state, c.id, ch);
+  const disp = c.limit - f.total;
+  const pct = c.limit > 0 ? Math.min(100, (f.total / c.limit) * 100) : 0;
+  const avulsas = expandEntries(state, ch).filter(function (oc) { return oc.entry.type === 'despesa' && oc.entry.cardId === c.id; });
+  const parcelas = parcelasDoMes(state, ch).filter(function (x) { return x.purchase.cardId === c.id; });
+  let linhasFatura = '';
+  if (!avulsas.length && !parcelas.length) linhasFatura = '<div class="vazio" style="padding:12px">Nada nesta fatura.</div>';
+  else {
+    linhasFatura = avulsas.map(function (oc) {
+      return '<div class="linha"><div class="desc">' + esc(oc.entry.desc) + '<small>' + esc(dataBR(oc.date)) + ' &bull; ' + esc(oc.entry.category) + ' &bull; compra avulsa</small></div><span class="valor">' + fmt(oc.valor) + '</span></div>';
+    }).join('') + parcelas.map(function (x) {
+      return '<div class="linha"><div class="desc">' + esc(x.purchase.name) + '<small>Parcela ' + x.k + ' de ' + x.purchase.n + (x.pago ? ' &bull; ✓ paga' : '') + '</small></div>' +
+        '<div class="acoes-linha"><span class="valor">' + fmt(x.valor) + '</span>' +
+        '<button type="button" class="btn ' + (x.pago ? 'btn-primary' : 'btn-ghost') + ' btn-sm" data-action="toggle-parcela" data-id="' + x.purchase.id + '" data-mes="' + ch + '">' + (x.pago ? '✓ Paga' : 'Marcar paga') + '</button></div></div>';
+    }).join('');
+  }
+  const compras = state.purchases.filter(function (p) { return p.cardId === c.id; }).sort(function (a, b) { return a.firstMonth < b.firstMonth ? -1 : 1; });
+  let linhasCompras = '';
+  if (!compras.length) linhasCompras = '<div class="vazio" style="padding:12px">Nenhuma compra parcelada neste cartão.</div>';
+  else linhasCompras = compras.map(function (p) {
+    const r = restanteCompra(p);
+    const mensal = p.total / p.n;
+    const aberto = !!comprasExpandidas[p.id];
+    let cronograma = '';
+    if (aberto) {
+      for (let k = 0; k < p.n; k++) {
+        const m = chaveDeIndice(indiceMes(p.firstMonth) + k);
+        const pago = (p.paidMonths || []).indexOf(m) !== -1;
+        cronograma += '<div class="linha"><div class="desc">Parcela ' + (k + 1) + ' de ' + p.n + '<small>' + esc(rotuloMes(m)) + (m === ch ? ' &bull; mês exibido' : '') + '</small></div>' +
+          '<div class="acoes-linha"><span class="valor">' + fmt(mensal) + '</span>' +
+          '<button type="button" class="btn ' + (pago ? 'btn-primary' : 'btn-ghost') + ' btn-sm" data-action="toggle-parcela" data-id="' + p.id + '" data-mes="' + m + '">' + (pago ? '✓ Paga' : 'Marcar paga') + '</button></div></div>';
+      }
+    }
+    return '<div class="card" style="margin-bottom:12px"><button type="button" class="compra-toggle" data-action="toggle-cronograma" data-id="' + p.id + '">' +
+      '<span><b>' + esc(p.name) + '</b><small>' + esc(p.category) + ' &bull; ' + fmt(mensal) + '/mês &bull; ' + r.pagos + '/' + p.n + ' pagas &bull; termina em ' + esc(mesCurto(fimDaCompra(p))) + '</small></span>' +
+      '<span style="text-align:right"><b>' + fmt(p.total) + '</b><small>' + (aberto ? 'Ocultar meses ▴' : 'Ver meses ▾') + '</small></span></button>' +
+      (aberto ? '<div style="border-top:1px solid var(--border);margin-top:10px">' + cronograma + '</div>' : '') +
+      '<div class="barra"><i style="width:' + Math.round((r.pagos / p.n) * 100) + '%"></i></div>' +
+      '<div class="sub" style="margin-top:8px">Restam ' + r.restantes + ' parcelas &bull; valor restante: <b>' + fmt(r.valorRestante) + '</b></div></div>';
+  }).join('');
+  let chips = '';
+  const hoje = chaveMes(new Date());
+  for (let i = 0; i < 6; i++) {
+    const m = deslocarMes(hoje, i);
+    let tot = 0;
+    parcelasDoMes(state, m).forEach(function (x) { if (x.purchase.cardId === c.id) tot += x.valor; });
+    chips += '<button type="button" class="mes-chip' + (m === ch ? ' ativo' : '') + '" data-action="cartao-mes-chip" data-mes="' + m + '"><b>' + esc(mesCurto(m)) + '</b><span>' + fmt(tot) + '</span></button>';
+  }
+  return '<div class="sec-head"><h2>' + esc(c.name) + '</h2><div class="acoes"><button type="button" class="btn btn-ghost" data-action="voltar-cartoes">‹ Voltar para cartões</button></div></div>' +
+    '<div style="display:flex;justify-content:center;margin-bottom:16px">' + cartaoVisualHTML(c, f) + '</div>' +
+    '<div class="grid kpis">' +
+    kpiHTML('Limite total', fmt(c.limit), esc(c.bank) + ' • ' + esc(c.brand)) +
+    kpiHTML('Utilizado (' + esc(mesCurto(ch)) + ')', fmt(f.total), 'Compras ' + fmt(f.avulsas) + ' + parcelas ' + fmt(f.parcelas), f.total > c.limit ? 'vermelho' : '') +
+    kpiHTML('Limite disponível', fmt(disp), disp < 0 ? 'Acima do limite' : 'Para novas compras', disp < 0 ? 'vermelho' : 'verde') +
+    '</div>' +
+    '<div class="barra" style="margin-bottom:16px"><i class="' + (pct >= 100 ? 'estouro' : (pct >= limiteAlerta() ? 'amarelo' : '')) + '" style="width:' + pct + '%"></i></div>' +
+    '<div class="card" style="margin-bottom:14px"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center">' +
+    '<div><div class="sub">Fechamento</div><b>Dia ' + c.closingDay + '</b></div>' +
+    '<div><div class="sub">Vencimento</div><b>Dia ' + c.dueDay + '</b></div>' +
+    '<div><div class="sub">Melhor dia de compra</div><b>Dia ' + c.bestDay + '</b></div></div></div>' +
+    '<div class="sec-head"><h2>Próximos meses — parcelas</h2></div>' +
+    '<div class="mes-chips">' + chips + '</div>' +
+    '<div class="sec-head" style="margin-top:18px"><h2>Fatura de ' + esc(rotuloMes(ch)) + '</h2><div class="acoes"><div class="mes-nav"><button type="button" class="icon-btn" data-action="cartao-mes-ant" aria-label="Mês anterior">‹</button><span>' + esc(rotuloMes(ch)) + '</span><button type="button" class="icon-btn" data-action="cartao-mes-prox" aria-label="Próximo mês">›</button></div></div></div>' +
+    '<div class="card" style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h3>Total da fatura</h3><b style="font-size:22px">' + fmt(f.total) + '</b></div>' +
+    '<div class="sub" style="margin-top:6px">Compras avulsas ' + fmt(f.avulsas) + ' + parcelas ' + fmt(f.parcelas) + ' &bull; ' +
+    (f.pago ? '<span class="tag verde">Fatura paga</span>' : (f.pagos > 0 ? '<span class="tag amarelo">Pago parcial: ' + fmt(f.pagos) + ' — faltam ' + fmt(f.faltam) + '</span>' : '<span class="tag vermelho">Em aberto</span>')) + '</div>' +
+    '<div style="margin-top:8px">' + linhasFatura + '</div>' +
+    (f.total > 0 && !f.pago ? '<div class="acoes-linha" style="margin-top:12px"><button type="button" class="btn btn-primary btn-sm" data-action="pagar-fatura-cartao" data-id="' + c.id + '" data-mes="' + ch + '">Pagar fatura de ' + esc(mesCurto(ch)) + '</button></div>' : '') + '</div>' +
+    '<div class="sec-head"><h2>Parcelas deste cartão</h2><div class="acoes"><button type="button" class="btn btn-primary" data-action="nova-compra">+ Nova compra parcelada</button></div></div>' +
+    linhasCompras +
+    '<div class="acoes-linha" style="margin-top:6px"><button type="button" class="btn btn-ghost btn-sm" data-action="editar-cartao" data-id="' + c.id + '">Editar cartão</button>' +
+    '<button type="button" class="btn btn-danger btn-sm" data-action="apagar-cartao" data-id="' + c.id + '">Apagar cartão</button></div>';
 }
 
 function vParcelas() {
@@ -1652,6 +1738,7 @@ function render() {
     return;
   }
   rotaAtual = rotaDaHash();
+  if (rotaAtual !== 'cartoes') { cartaoAberto = null; comprasExpandidas = {}; }
   document.querySelectorAll('#nav a, #bottombar a').forEach(function (a) {
     a.classList.toggle('ativo', a.getAttribute('data-route') === rotaAtual);
   });
@@ -1710,6 +1797,13 @@ function bindStatic() {
       return;
     }
     if (acao === 'pagar-fatura') { openModal(formPagarFaturaHTML(id, mesSel)); return; }
+    if (acao === 'abrir-cartao') { cartaoAberto = id; cartaoMes = mesSel; comprasExpandidas = {}; render(); return; }
+    if (acao === 'voltar-cartoes') { cartaoAberto = null; comprasExpandidas = {}; render(); return; }
+    if (acao === 'cartao-mes-ant') { cartaoMes = deslocarMes(cartaoMes || mesSel, -1); render(); return; }
+    if (acao === 'cartao-mes-prox') { cartaoMes = deslocarMes(cartaoMes || mesSel, 1); render(); return; }
+    if (acao === 'cartao-mes-chip') { cartaoMes = el.getAttribute('data-mes'); render(); return; }
+    if (acao === 'toggle-cronograma') { comprasExpandidas[id] = !comprasExpandidas[id]; render(); return; }
+    if (acao === 'pagar-fatura-cartao') { openModal(formPagarFaturaHTML(id, el.getAttribute('data-mes') || mesSel)); return; }
     if (acao === 'nova-compra') { openModal(formCompraHTML()); return; }
     if (acao === 'editar-compra') { const o = state.purchases.find(function (x) { return x.id === id; }); if (o) openModal(formCompraHTML(o)); return; }
     if (acao === 'apagar-compra') {
