@@ -1747,6 +1747,11 @@ function render() {
   }
   rotaAtual = rotaDaHash();
   if (rotaAtual !== 'cartoes') { cartaoAberto = null; comprasExpandidas = {}; }
+  // Página inicial e lista de cartões: sem o seletor de mês no topo (mês atual
+  // sempre); navegar entre meses só dentro do detalhe do cartão.
+  if (rotaAtual === 'dashboard' || rotaAtual === 'cartoes') mesSel = chaveMes(new Date());
+  const navMes = document.querySelector('.mes-nav');
+  if (navMes) navMes.style.display = (rotaAtual === 'dashboard' || rotaAtual === 'cartoes') ? 'none' : '';
   document.querySelectorAll('#nav a, #bottombar a').forEach(function (a) {
     a.classList.toggle('ativo', a.getAttribute('data-route') === rotaAtual);
   });
